@@ -1,49 +1,56 @@
 """
 Google Docstring Formatter
 """
-from parso.python.tree import Function, Class, Module, KeywordStatement, Name, PythonNode, ExprStmt
-
-from pydocstring.formatters.format_utils import (
-    safe_determine_type,
-    get_param_info,
-    get_return_info,
-    get_exception_name
-)
+from parso.python.tree import Class, ExprStmt, Function, KeywordStatement, Module, Name, PythonNode
+from pydocstring.formatters.format_utils import (get_exception_name, get_param_info,
+                                                 get_return_info, parse_existing_docstring,
+                                                 safe_determine_type)
 
 
-def function_docstring(parso_function):
+def function_docstring(parso_function: Function):
     """
     Format a google docstring for a function
 
     Args:
-        parso_function (Function): The function tree node
+        parso_function: The function tree node
 
     Returns:
         str: The formatted docstring
     """
     assert isinstance(parso_function, Function)
 
+    params = parso_function.get_params()
     docstring = "\n"
 
-    params = parso_function.get_params()
+    doc = parso_function.get_doc_node()
+    header, params_doc, footer = parse_existing_docstring(doc)
+
+    if header:
+        docstring += header
+
     if params:
         docstring += "\n\nArgs:\n"
         for param in params:
-                if param.star_count == 1:
-                    docstring += "    *{0}: {1}\n".format(param.name.value,
-                                                          "Variable length argument list.")
-                elif param.star_count == 2:
-                    docstring += "    **{0}: {1}\n".format(param.name.value,
-                                                           "Arbitrary keyword arguments.")
-                else:
-                    docstring += "    {0} ({1}): {2}\n".format(*get_param_info(param))
+            if param.star_count == 1:
+                docstring += "    *{0}: {1}\n".format(
+                    param.name.value, "Variable length argument list."
+                )
+            elif param.star_count == 2:
+                docstring += "    **{0}: {1}\n".format(
+                    param.name.value, "Arbitrary keyword arguments."
+                )
+            else:
+                name, type_, default = get_param_info(param)
+                default_docstring = f"    {name} ({type_}): {default}\n"
+                docstring += params_doc.get(name, "") or default_docstring
 
     returns = list(parso_function.iter_return_stmts())
     if returns:
         docstring += "\n\nReturns:\n"
         for ret in returns:
             docstring += "    {0}: {1}\n".format(
-                *get_return_info(ret, parso_function.annotation))
+                *get_return_info(ret, parso_function.annotation)
+            )
     elif parso_function.annotation:
         docstring += "\n\nReturns:\n"
         docstring += "    {0}: \n".format(parso_function.annotation.value)
@@ -53,7 +60,8 @@ def function_docstring(parso_function):
         docstring += "\n\nYields:\n"
         for yie in yields:
             docstring += "    {0}: {1}\n".format(
-                *get_return_info(yie, parso_function.annotation))
+                *get_return_info(yie, parso_function.annotation)
+            )
 
     raises = list(parso_function.iter_raise_stmts())
     if raises:
@@ -83,11 +91,11 @@ def class_docstring(parso_class):
     attribute_expressions = []
 
     for child in parso_class.children:
-        if child.type == 'suite':
+        if child.type == "suite":
             for child2 in child.children:
-                if child2.type == 'simple_stmt':
+                if child2.type == "simple_stmt":
                     for child3 in child2.children:
-                        if child3.type == 'expr_stmt':
+                        if child3.type == "expr_stmt":
                             attribute_expressions.append(child3)
 
     print(attribute_expressions)
@@ -122,9 +130,9 @@ def module_docstring(parso_module):
     attribute_expressions = []
 
     for child in parso_module.children:
-        if child.type == 'simple_stmt':
+        if child.type == "simple_stmt":
             for child2 in child.children:
-                if child2.type == 'expr_stmt':
+                if child2.type == "expr_stmt":
                     attribute_expressions.append(child2)
 
     if attribute_expressions:
